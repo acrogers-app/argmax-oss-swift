@@ -229,7 +229,7 @@ public extension TextDecoding {
         let tensorShape = keyTensor.shape.map { $0.intValue }
         let sliceShape = keySlice.shape.map { $0.intValue }
         let sliceStrides = keySlice.strides.map { $0.intValue } // same for val
-        let bytesPerSample = MemoryLayout<FloatType>.size
+        let bytesPerSample = keyTensor.dataType.elementByteSize // um fork: real element size (2 for float16 on x86_64)
 
         keyTensor.withUnsafeMutableBytes { keyTensorPointer, keyTargetStrides in
             keySlice.withUnsafeBytes { keySlicePointer in
@@ -283,7 +283,7 @@ public extension TextDecoding {
     ) {
         let tensorShape = alignmentTensor.shape.map { $0.intValue }
         let sliceStrides = alignmentSlice.strides.map { $0.intValue }
-        let bytesPerSample = MemoryLayout<FloatType>.size
+        let bytesPerSample = alignmentTensor.dataType.elementByteSize // um fork: real element size (2 for float16 on x86_64)
 
         alignmentTensor.withUnsafeMutableBytes { alignmentPointer, alignmentStrides in
             alignmentSlice.withUnsafeBytes { slicePointer in
@@ -415,7 +415,12 @@ open class TextDecoder: TextDecoding, WhisperMLModel {
 
         let output = TextDecoderOutput(features: outputFeatures)
 
+        #if arch(x86_64)
+        // um fork: logits are consumed as FloatType (= Float on x86_64); convert half to float32.
+        let logits = output.logits.float32IfHalf()
+        #else
         let logits = output.logits
+        #endif
         let cache = DecodingCache(
             keyCache: output.key_cache_updates,
             valueCache: output.value_cache_updates,

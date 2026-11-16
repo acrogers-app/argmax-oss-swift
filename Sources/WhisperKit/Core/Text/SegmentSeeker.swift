@@ -449,13 +449,14 @@ open class SegmentSeeker: SegmentSeeking {
 
         let filteredAlignmentWeights = try MLMultiArray(shape: [filteredIndices.count, columnCount] as [NSNumber], dataType: alignmentWeights.dataType, initialValue: FloatType(0))
 
+        let elementSize = alignmentWeights.dataType.elementByteSize // um fork: real element size
         alignmentWeights.withUnsafeMutableBytes { weightsPointer, weightsStride in
             filteredAlignmentWeights.withUnsafeMutableBytes { filteredWeightsPointer, filteredWeightsStride in
                 for (newIndex, originalIndex) in filteredIndices.enumerated() {
-                    let sourcePointer = weightsPointer.baseAddress!.advanced(by: Int(originalIndex * columnCount * MemoryLayout<FloatType>.stride))
-                    let destinationPointer = filteredWeightsPointer.baseAddress!.advanced(by: Int(newIndex * columnCount * MemoryLayout<FloatType>.stride))
+                    let sourcePointer = weightsPointer.baseAddress!.advanced(by: Int(originalIndex * columnCount * elementSize))
+                    let destinationPointer = filteredWeightsPointer.baseAddress!.advanced(by: Int(newIndex * columnCount * elementSize))
 
-                    memcpy(destinationPointer, sourcePointer, columnCount * MemoryLayout<FloatType>.stride)
+                    memcpy(destinationPointer, sourcePointer, columnCount * elementSize)
                 }
             }
         }

@@ -31,10 +31,18 @@ public extension MLMultiArray {
                     typedPointer.initialize(repeating: value, count: count)
                 }
             case .float16:
+                #if arch(x86_64)
+                // um fork: storage is 2-byte half; FloatType is 4-byte Float on x86_64.
+                let f: Float? = (initialValue as? Float) ?? (initialValue as? Double).map { Float($0) }
+                if let f {
+                    dataPointer.bindMemory(to: UInt16.self, capacity: count).initialize(repeating: HalfFloat.bits(f), count: count)
+                }
+                #else
                 if let value = initialValue as? FloatType {
                     let typedPointer = dataPointer.bindMemory(to: FloatType.self, capacity: count)
                     typedPointer.initialize(repeating: value, count: count)
                 }
+                #endif
             case .int32:
                 if let value = initialValue as? Int32 {
                     let typedPointer = dataPointer.bindMemory(to: Int32.self, capacity: count)
@@ -91,6 +99,15 @@ public extension MLMultiArray {
     /// Requires shape [1, 1, n].
     func fillLastDimension(indexes: Range<Int>, with value: FloatType) {
         precondition(shape.count == 3 && shape[0] == 1 && shape[1] == 1, "Must have [1, 1, n] shape")
+        #if arch(x86_64)
+        if dataType == .float16 {
+            let bits = HalfFloat.bits(Float(value))
+            let lastStride = strides[2].intValue
+            let ptr = dataPointer.bindMemory(to: UInt16.self, capacity: count)
+            for index in indexes { ptr[index * lastStride] = bits }
+            return
+        }
+        #endif
         withUnsafeMutableBufferPointer(ofType: FloatType.self) { ptr, strides in
             for index in indexes {
                 ptr[index * strides[2]] = value
